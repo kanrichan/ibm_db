@@ -2,11 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net"
 )
 
@@ -64,84 +61,7 @@ var ascii = [256]byte{
 	48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 250, 251, 252, 253, 254, 255,
 }
 
-type Login struct {
-	//Login    xml.Name `xml:"login"`
-	Username struct {
-		Name string `xml:"name"`
-		Sex  string `xml:"sex"`
-	} `xml:"username"`
-	Password string `xml:"password"`
-}
-
-type Request interface {
-	Unmarshal(data []byte) error
-}
-
-func (r *Login) Unmarshal(data []byte) error {
-	decoder := xml.NewDecoder(bytes.NewReader(data))
-	decoder.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
-		b, err := ioutil.ReadAll(input)
-		if err != nil {
-			return nil, err
-		}
-		b = bytes.TrimLeft(b, "	")
-		return bytes.NewReader(b), nil
-	}
-	return xml.Unmarshal(data, r)
-}
-
-func NetHandle(data []byte, request Request, handles ...func(request Request)) {
-	err := request.Unmarshal(data)
-	if err != nil {
-		panic(err)
-	}
-	for i := range handles {
-		handles[i](request)
-	}
-}
-
-func BusinessHandle(request Request) {
-	login := request.(*Login)
-	fmt.Println(login.Username.Sex, login.Password)
-}
-
-func Xml() {
-	xmlDoc := `<?xml version="1.0" encoding="UTF-8"?>
-                <note>
-                  <to>Tove</to>
-                  <from>Jani</from>
-                  <heading>Reminder</heading>
-                  <body>Don't forget me this weekend!</body>
-                </note>`
-	type xmlStruct struct {
-		//XMLName xml.Name `xml:"note"`
-		To      string `xml:"to"`
-		From    string `xml:"from"`
-		Heading string `xml:"heading"`
-		Body    string `xml:"body"`
-	}
-	x := xmlStruct{}
-	err := xml.Unmarshal([]byte(xmlDoc), &x)
-	if err != nil {
-		fmt.Println(err.Error())
-	} else {
-		fmt.Println(x.Body)
-	}
-}
-
 func main() {
-	fmt.Println(0.001 + 0.002)
-	Xml()
-	request := []byte(`<?xml version="1.0" encoding="utf-8"?>
-	<login>
-		<username>
-			<name>admin</name>
-			<sex>男</sex>
-		</username>
-		<password>123456</password>
-	</login>`)
-	NetHandle(request, &Login{}, BusinessHandle)
-
 	conn, err := net.Dial("tcp", "127.0.0.1:50000")
 	if err != nil {
 		panic(err)
@@ -170,40 +90,66 @@ func main() {
 	//bw.WriteByte(0x00) // Length
 	//bw.WriteByte(0xD0) // Magic
 	//bw.Flush()
-	conn.Write(
-		WriteDDM(0xd0, 0x41, 1, EXCSAT,
-			// WriteParameter(0x115e, []byte{0x94, 0x81,
-			// 	0x89, 0x95, 0x4b, 0x85, 0xa7, 0x85, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
-			// 	0x40, 0x40, 0xf1, 0xf9, 0xc3, 0xc3, 0xf0, 0xf6, 0xc1, 0xc3, 0xf0, 0xf0, 0xf0, 0x00, 0x00, 0x00,
-			// 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-			// 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0xf0, 0xf0,
-			// 	0xf0, 0xf1, 0xd2, 0xc1, 0xd5, 0xd9, 0xc9, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
-			// 	0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
-			// 	0xd6, 0xd5, 0xc5, 0x40, 0x40, 0x40, 0x40, 0x40, 0xf0, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
-			// 	0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0xf0, 0xf0, 0xf1, 0xa2, 0xf2, 0xf0, 0xf1,
-			// 	0xf1, 0xf0, 0xf1, 0xf1, 0xf4, 0xf0, 0xf0, 0x40, 0x40, 0x40, 0x40, 0xf0, 0x40, 0x40}),
-			WriteParameter(EXTNAM, ToEBCDIC([]byte("QDB2/NT64"))),
-			WriteParameter(MGRLVLLS, []byte{0x14, 0x03, 0x00, 0x0a, 0x24, 0x07, 0x00, 0x0b, 0x14, 0x74, 0x00, 0x05, 0x24, 0x0f,
-				0x00, 0x0c, 0x14, 0x40, 0x00, 0x0a, 0x1c, 0x08, 0x04, 0xb8}),
-			WriteParameter(SRVCLSNM, ToEBCDIC([]byte("QDB2/NT64"))),
-			WriteParameter(SRVNAM, ToEBCDIC([]byte("DESKTOP-TS0HAVA"))),
-			WriteParameter(SRVRLSLV, ToEBCDIC([]byte("SQL11055"))),
-		),
-	)
-	conn.Write(
-		WriteDDM(0xd0, 0x01, 2, ACCSEC,
-			WriteParameter(SECMEC, []byte{0x00, 0x09}),
-			WriteParameter(RDBNAM, []byte{0xd6, 0xd5, 0xc5, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40}),
-			WriteParameter(SECTKN, []byte{0xa2, 0x04, 0x1b, 0x29, 0x03, 0x46, 0xfc, 0x6c, 0xa3, 0x0e, 0xc9, 0x4b, 0xa2, 0xd3, 0x28, 0x5f, 0x5a, 0x99, 0xa8, 0x1c, 0xd2, 0x89, 0x80, 0xbf, 0x80, 0x09, 0xc8, 0x92, 0x32, 0x79, 0xdd, 0x02}),
-		),
-	)
-
-	drda, _ := ReadDrda(conn)
-	fmt.Println(string(toAscii(drda.Parameter[4].Payload)))
-	fmt.Println()
-	drda, _ = ReadDrda(conn)
+	connection := Conn{conn}
+	connection.Write(&DRDA{
+		DDM: &DDM{Magic: 0xd0, Format: 0x41, CorrelId: 1, CodePoint: EXCSAT},
+		Parameters: []*Parameter{
+			{CodePoint: EXTNAM, Payload: ToEBCDIC([]byte("QDB2/NT64"))},
+			{CodePoint: MGRLVLLS, Payload: []byte{0x14, 0x03, 0x00, 0x0a, 0x24, 0x07, 0x00, 0x0b, 0x14, 0x74, 0x00, 0x05, 0x24, 0x0f,
+				0x00, 0x0c, 0x14, 0x40, 0x00, 0x0a, 0x1c, 0x08, 0x04, 0xb8}},
+			{CodePoint: SRVCLSNM, Payload: ToEBCDIC([]byte("QDB2/NT64"))},
+			{CodePoint: SRVNAM, Payload: ToEBCDIC([]byte("DESKTOP-TS0HAVA"))},
+			{CodePoint: SRVRLSLV, Payload: ToEBCDIC([]byte("SQL11055"))},
+		},
+	})
+	connection.Write(&DRDA{
+		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: ACCSEC},
+		Parameters: []*Parameter{
+			{CodePoint: SECMEC, Payload: []byte{0x00, 0x09}},
+			{CodePoint: RDBNAM, Payload: []byte{0xd6, 0xd5, 0xc5, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40}},
+			{CodePoint: SECTKN, Payload: []byte{0xa2, 0x04, 0x1b, 0x29, 0x03, 0x46, 0xfc, 0x6c, 0xa3, 0x0e, 0xc9, 0x4b, 0xa2, 0xd3, 0x28, 0x5f, 0x5a, 0x99,
+				0xa8, 0x1c, 0xd2, 0x89, 0x80, 0xbf, 0x80, 0x09, 0xc8, 0x92, 0x32, 0x79, 0xdd, 0x02}},
+		},
+	})
+	drda, _ := connection.Read()
 	fmt.Println(drda)
-	conn.Close()
+	drda, _ = connection.Read()
+	fmt.Println(drda)
+	connection.conn.Close()
+	// conn.Write(
+	// 	WriteDDM(0xd0, 0x41, 1, EXCSAT,
+	// 		// WriteParameter(0x115e, []byte{0x94, 0x81,
+	// 		// 	0x89, 0x95, 0x4b, 0x85, 0xa7, 0x85, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+	// 		// 	0x40, 0x40, 0xf1, 0xf9, 0xc3, 0xc3, 0xf0, 0xf6, 0xc1, 0xc3, 0xf0, 0xf0, 0xf0, 0x00, 0x00, 0x00,
+	// 		// 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	// 		// 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0xf0, 0xf0,
+	// 		// 	0xf0, 0xf1, 0xd2, 0xc1, 0xd5, 0xd9, 0xc9, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+	// 		// 	0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+	// 		// 	0xd6, 0xd5, 0xc5, 0x40, 0x40, 0x40, 0x40, 0x40, 0xf0, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+	// 		// 	0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0xf0, 0xf0, 0xf1, 0xa2, 0xf2, 0xf0, 0xf1,
+	// 		// 	0xf1, 0xf0, 0xf1, 0xf1, 0xf4, 0xf0, 0xf0, 0x40, 0x40, 0x40, 0x40, 0xf0, 0x40, 0x40}),
+	// 		WriteParameter(EXTNAM, ToEBCDIC([]byte("QDB2/NT64"))),
+	// 		WriteParameter(MGRLVLLS, []byte{0x14, 0x03, 0x00, 0x0a, 0x24, 0x07, 0x00, 0x0b, 0x14, 0x74, 0x00, 0x05, 0x24, 0x0f,
+	// 			0x00, 0x0c, 0x14, 0x40, 0x00, 0x0a, 0x1c, 0x08, 0x04, 0xb8}),
+	// 		WriteParameter(SRVCLSNM, ToEBCDIC([]byte("QDB2/NT64"))),
+	// 		WriteParameter(SRVNAM, ToEBCDIC([]byte("DESKTOP-TS0HAVA"))),
+	// 		WriteParameter(SRVRLSLV, ToEBCDIC([]byte("SQL11055"))),
+	// 	),
+	// )
+	// conn.Write(
+	// 	WriteDDM(0xd0, 0x01, 2, ACCSEC,
+	// 		WriteParameter(SECMEC, []byte{0x00, 0x09}),
+	// 		WriteParameter(RDBNAM, []byte{0xd6, 0xd5, 0xc5, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40}),
+	// 		WriteParameter(SECTKN, []byte{0xa2, 0x04, 0x1b, 0x29, 0x03, 0x46, 0xfc, 0x6c, 0xa3, 0x0e, 0xc9, 0x4b, 0xa2, 0xd3, 0x28, 0x5f, 0x5a, 0x99, 0xa8, 0x1c, 0xd2, 0x89, 0x80, 0xbf, 0x80, 0x09, 0xc8, 0x92, 0x32, 0x79, 0xdd, 0x02}),
+	// 	),
+	// )
+
+	// drda, _ := ReadDrda(conn)
+	// fmt.Println(string(toAscii(drda.Parameter[4].Payload)))
+	// fmt.Println()
+	// drda, _ = ReadDrda(conn)
+	// fmt.Println(drda)
+
 	// fmt.Printf("% x", WriteDDM(0xd0, 0x41, 1, 0x1041,
 	// 	WriteParameter(0x115e, []byte{0x94, 0x81,
 	// 		0x89, 0x95, 0x4b, 0x85, 0xa7, 0x85, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
@@ -239,9 +185,86 @@ func toAscii(data []byte) []byte {
 	return buf.Bytes()
 }
 
+type Conn struct {
+	conn net.Conn
+}
+
+func (conn *Conn) Write(drda *DRDA) error {
+	var dbuf = bytes.NewBuffer(make([]byte, 0))
+	dbuf.WriteByte(0x00)
+	dbuf.WriteByte(0x00)            // Length
+	dbuf.WriteByte(drda.DDM.Magic)  // Magic
+	dbuf.WriteByte(drda.DDM.Format) // Format
+	dbuf.WriteByte(byte((drda.DDM.CorrelId & 0xFF00) >> 8))
+	dbuf.WriteByte(byte(drda.DDM.CorrelId & 0x00FF)) // CorrelId
+	dbuf.WriteByte(0x00)
+	dbuf.WriteByte(0x00) // Length2
+	dbuf.WriteByte(byte((drda.DDM.CodePoint & 0xff00) >> 8))
+	dbuf.WriteByte(byte(drda.DDM.CodePoint & 0x00ff)) // codePoint
+	for _, parameter := range drda.Parameters {
+		var pbuf = bytes.NewBuffer(make([]byte, 0))
+		pbuf.WriteByte(0x00)
+		pbuf.WriteByte(0x00) // Length
+		pbuf.WriteByte(byte((parameter.CodePoint & 0xff00) >> 8))
+		pbuf.WriteByte(byte(parameter.CodePoint & 0x00ff)) // CodePoint
+		pbuf.Write(parameter.Payload)                      // Payload
+		var b = pbuf.Bytes()
+		var l = len(b)
+		b[0] = byte((l & 0xff00) >> 8)
+		b[1] = byte(l & 0x00ff) // Length
+		dbuf.Write(b)
+	}
+	var b = dbuf.Bytes()
+	var l1 = len(b)
+	b[0] = byte((l1 & 0xff00) >> 8)
+	b[1] = byte(l1 & 0x00ff) // Length
+	b[6] = byte(((l1 - 6) & 0xff00) >> 8)
+	b[7] = byte((l1 - 6) & 0x00ff) // Length2
+	conn.conn.Write(b)
+	return nil
+}
+
+func (conn *Conn) Read() (*DRDA, error) {
+	var b1 = make([]byte, 2)
+	conn.conn.Read(b1)
+	var length = bytesToInt32(b1...)
+	var b2 = make([]byte, length-2)
+	n, err := conn.conn.Read(b2)
+	if err != nil {
+		return &DRDA{}, err
+	}
+	if n != int(length-2) {
+		return &DRDA{}, errors.New("Read DRDA payload not enough length")
+	}
+	var ddm = DDM{
+		Length:    length,
+		Magic:     b2[0],
+		Format:    b2[1],
+		CorrelId:  bytesToInt32(b2[2], b2[3]),
+		Length2:   bytesToInt32(b2[4], b2[5]),
+		CodePoint: bytesToInt32(b2[5], b2[6]),
+	}
+	var drda = DRDA{
+		DDM:        &ddm,
+		Parameters: make([]*Parameter, 0),
+	}
+	for i := 8; i < len(b2); {
+		var pl = bytesToInt32(b2[i], b2[i+1])
+		drda.Parameters = append(drda.Parameters,
+			&Parameter{
+				Length:    pl,
+				CodePoint: bytesToInt32(b2[i+2], b2[i+3]),
+				Payload:   b2[i+4 : i+int(pl)],
+			},
+		)
+		i += int(pl)
+	}
+	return &drda, nil
+}
+
 type DRDA struct {
-	DDM       DDM
-	Parameter []Parameter
+	DDM        *DDM
+	Parameters []*Parameter
 }
 
 type DDM struct {
@@ -286,81 +309,81 @@ func readBytes(br *bytes.Reader, length int) []byte {
 	return b
 }
 
-func ReadDrda(conn net.Conn) (DRDA, error) {
-	var b1 = make([]byte, 2)
-	conn.Read(b1)
-	var length = bytesToInt32(b1...)
-	var b2 = make([]byte, length-2)
-	n, err := conn.Read(b2)
-	if err != nil {
-		return DRDA{}, err
-	}
-	if n != int(length-2) {
-		return DRDA{}, errors.New("Read DRDA payload not enough length")
-	}
-	var ddm = DDM{
-		Length:    length,
-		Magic:     b2[0],
-		Format:    b2[1],
-		CorrelId:  bytesToInt32(b2[2], b2[3]),
-		Length2:   bytesToInt32(b2[4], b2[5]),
-		CodePoint: bytesToInt32(b2[5], b2[6]),
-	}
-	var drda = DRDA{
-		DDM:       ddm,
-		Parameter: make([]Parameter, 0),
-	}
-	for i := 8; i < len(b2); {
-		var pl = bytesToInt32(b2[i], b2[i+1])
-		drda.Parameter = append(drda.Parameter,
-			Parameter{
-				Length:    pl,
-				CodePoint: bytesToInt32(b2[i+2], b2[i+3]),
-				Payload:   b2[i+4 : i+int(pl)],
-			},
-		)
-		i += int(pl)
-	}
-	return drda, nil
-}
+// func ReadDrda(conn net.Conn) (DRDA, error) {
+// 	var b1 = make([]byte, 2)
+// 	conn.Read(b1)
+// 	var length = bytesToInt32(b1...)
+// 	var b2 = make([]byte, length-2)
+// 	n, err := conn.Read(b2)
+// 	if err != nil {
+// 		return DRDA{}, err
+// 	}
+// 	if n != int(length-2) {
+// 		return DRDA{}, errors.New("Read DRDA payload not enough length")
+// 	}
+// 	var ddm = DDM{
+// 		Length:    length,
+// 		Magic:     b2[0],
+// 		Format:    b2[1],
+// 		CorrelId:  bytesToInt32(b2[2], b2[3]),
+// 		Length2:   bytesToInt32(b2[4], b2[5]),
+// 		CodePoint: bytesToInt32(b2[5], b2[6]),
+// 	}
+// 	var drda = DRDA{
+// 		DDM:        ddm,
+// 		Parameters: make([]Parameter, 0),
+// 	}
+// 	for i := 8; i < len(b2); {
+// 		var pl = bytesToInt32(b2[i], b2[i+1])
+// 		drda.Parameters = append(drda.Parameters,
+// 			Parameter{
+// 				Length:    pl,
+// 				CodePoint: bytesToInt32(b2[i+2], b2[i+3]),
+// 				Payload:   b2[i+4 : i+int(pl)],
+// 			},
+// 		)
+// 		i += int(pl)
+// 	}
+// 	return drda, nil
+// }
 
-func WriteDDM(magic byte, format byte, correlId int32, codePoint int32, parameter ...[]byte) []byte {
-	var buf = bytes.NewBuffer(make([]byte, 0))
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00)   // Length
-	buf.WriteByte(magic)  // Magic
-	buf.WriteByte(format) // Format
-	buf.WriteByte(byte((correlId & 0xFF00) >> 8))
-	buf.WriteByte(byte(correlId & 0x00FF)) // CorrelId
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00) // Length2
-	buf.WriteByte(byte((codePoint & 0xff00) >> 8))
-	buf.WriteByte(byte(codePoint & 0x00ff)) // codePoint
-	for i := range parameter {
-		buf.Write(parameter[i])
-	}
-	var b = buf.Bytes()
-	var l1 = len(b)
-	b[0] = byte((l1 & 0xff00) >> 8) // Length
-	b[1] = byte(l1 & 0x00ff)
-	b[6] = byte(((l1 - 6) & 0xff00) >> 8) // Length2
-	b[7] = byte((l1 - 6) & 0x00ff)
-	return b
-}
+// func WriteDDM(magic byte, format byte, correlId int32, codePoint int32, parameter ...[]byte) []byte {
+// 	var buf = bytes.NewBuffer(make([]byte, 0))
+// 	buf.WriteByte(0x00)
+// 	buf.WriteByte(0x00)   // Length
+// 	buf.WriteByte(magic)  // Magic
+// 	buf.WriteByte(format) // Format
+// 	buf.WriteByte(byte((correlId & 0xFF00) >> 8))
+// 	buf.WriteByte(byte(correlId & 0x00FF)) // CorrelId
+// 	buf.WriteByte(0x00)
+// 	buf.WriteByte(0x00) // Length2
+// 	buf.WriteByte(byte((codePoint & 0xff00) >> 8))
+// 	buf.WriteByte(byte(codePoint & 0x00ff)) // codePoint
+// 	for i := range parameter {
+// 		buf.Write(parameter[i])
+// 	}
+// 	var b = buf.Bytes()
+// 	var l1 = len(b)
+// 	b[0] = byte((l1 & 0xff00) >> 8) // Length
+// 	b[1] = byte(l1 & 0x00ff)
+// 	b[6] = byte(((l1 - 6) & 0xff00) >> 8) // Length2
+// 	b[7] = byte((l1 - 6) & 0x00ff)
+// 	return b
+// }
 
-func WriteParameter(codePoint int32, payload []byte) []byte {
-	var buf = bytes.NewBuffer(make([]byte, 0))
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00) // Length
-	buf.WriteByte(byte((codePoint & 0xff00) >> 8))
-	buf.WriteByte(byte(codePoint & 0x00ff)) // CodePoint
-	buf.Write(payload)                      // Payload
-	var b = buf.Bytes()
-	var l = len(b)
-	b[0] = byte((l & 0xff00) >> 8)
-	b[1] = byte(l & 0x00ff)
-	return b
-}
+// func WriteParameter(codePoint int32, payload []byte) []byte {
+// 	var buf = bytes.NewBuffer(make([]byte, 0))
+// 	buf.WriteByte(0x00)
+// 	buf.WriteByte(0x00) // Length
+// 	buf.WriteByte(byte((codePoint & 0xff00) >> 8))
+// 	buf.WriteByte(byte(codePoint & 0x00ff)) // CodePoint
+// 	buf.Write(payload)                      // Payload
+// 	var b = buf.Bytes()
+// 	var l = len(b)
+// 	b[0] = byte((l & 0xff00) >> 8)
+// 	b[1] = byte(l & 0x00ff)
+// 	return b
+// }
 
 // int ddm_write_rqsdss(DRDA *drda, int typ)
 // {
