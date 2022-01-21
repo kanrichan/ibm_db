@@ -1,4 +1,4 @@
-package drda
+package main
 
 const (
 	// DRDA (Exchange Server Attributes)
@@ -14,6 +14,14 @@ const (
 	SECMEC = 0x11a2 // Parameter (Security Mechanism)
 	RDBNAM = 0x2110 // Parameter (Relational Database Name)
 	SECTKN = 0x11dc // Parameter (Security Token)
+
+	// DRDA (Security Check)
+	SECCHK   = 0x106e // DDM (SECCHK)
+	USRID    = 0x11a0 // Parameter (User ID at the Target System)
+	PASSWORD = 0x11a1 // Parameter (Password)
+
+	// DRDA (Access RDB)
+	ACCRDB = 0x2001 // DDM (ACCRDB)
 )
 
 type DRDA struct {

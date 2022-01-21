@@ -1,4 +1,4 @@
-package drda
+package main
 
 import (
 	"bytes"
@@ -8,14 +8,24 @@ import (
 
 type Conn struct {
 	conn net.Conn
+
+	addr   string
+	dbname string
+	userid string
+	passwd string
 }
 
-func NewConnect(addr string) (*Conn, error) {
+func NewConnect(addr, dbname, userid, passwd string) (*Conn, error) {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	return &Conn{conn}, nil
+	return &Conn{
+		conn:   conn,
+		dbname: dbname,
+		userid: userid,
+		passwd: passwd,
+	}, nil
 }
 
 func (conn *Conn) Write(drda *DRDA) error {

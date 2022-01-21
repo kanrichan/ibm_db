@@ -1,4 +1,4 @@
-package drda
+package main
 
 import "bytes"
 
