@@ -28,47 +28,54 @@ func NewConnect(addr, dbname, userid, passwd string) (*Conn, error) {
 	}, nil
 }
 
-func (conn *Conn) Write(drda *DRDA) error {
-	var dbuf = bytes.NewBuffer(make([]byte, 0))
-	dbuf.WriteByte(0x00)
-	dbuf.WriteByte(0x00)            // Length
-	dbuf.WriteByte(drda.DDM.Magic)  // Magic
-	dbuf.WriteByte(drda.DDM.Format) // Format
-	dbuf.WriteByte(byte((drda.DDM.CorrelId & 0xFF00) >> 8))
-	dbuf.WriteByte(byte(drda.DDM.CorrelId & 0x00FF)) // CorrelId
-	dbuf.WriteByte(0x00)
-	dbuf.WriteByte(0x00) // Length2
-	dbuf.WriteByte(byte((drda.DDM.CodePoint & 0xff00) >> 8))
-	dbuf.WriteByte(byte(drda.DDM.CodePoint & 0x00ff)) // codePoint
-	for _, parameter := range drda.Parameters {
-		var pbuf = bytes.NewBuffer(make([]byte, 0))
-		pbuf.WriteByte(0x00)
-		pbuf.WriteByte(0x00) // Length
-		pbuf.WriteByte(byte((parameter.CodePoint & 0xff00) >> 8))
-		pbuf.WriteByte(byte(parameter.CodePoint & 0x00ff)) // CodePoint
-		pbuf.Write(parameter.Payload)                      // Payload
-		var b = pbuf.Bytes()
-		var l = len(b)
-		b[0] = byte((l & 0xff00) >> 8)
-		b[1] = byte(l & 0x00ff) // Length
-		dbuf.Write(b)
+func (conn *Conn) Write(drdas ...*DRDA) error {
+	var buf = bytes.NewBuffer(make([]byte, 0))
+	var point int
+	for _, drda := range drdas {
+		point = buf.Len()
+		buf.WriteByte(0x00)
+		buf.WriteByte(0x00)            // Length
+		buf.WriteByte(drda.DDM.Magic)  // Magic
+		buf.WriteByte(drda.DDM.Format) // Format
+		buf.WriteByte(byte((drda.DDM.CorrelId & 0xFF00) >> 8))
+		buf.WriteByte(byte(drda.DDM.CorrelId & 0x00FF)) // CorrelId
+		buf.WriteByte(0x00)
+		buf.WriteByte(0x00) // Length2
+		buf.WriteByte(byte((drda.DDM.CodePoint & 0xff00) >> 8))
+		buf.WriteByte(byte(drda.DDM.CodePoint & 0x00ff)) // codePoint
+		var subpoint int
+		for _, parameter := range drda.Parameters {
+			subpoint = buf.Len()
+			buf.WriteByte(0x00)
+			buf.WriteByte(0x00) // Length
+			buf.WriteByte(byte((parameter.CodePoint & 0xff00) >> 8))
+			buf.WriteByte(byte(parameter.CodePoint & 0x00ff)) // CodePoint
+			buf.Write(parameter.Payload)                      // Payload
+			var b = buf.Bytes()
+			var l = len(b) - subpoint
+			b[subpoint] = byte((l & 0xff00) >> 8)
+			b[subpoint+1] = byte(l & 0x00ff) // Length
+		}
+		var b = buf.Bytes()
+		var l1 = len(b) - point
+		b[point] = byte((l1 & 0xff00) >> 8)
+		b[point+1] = byte(l1 & 0x00ff) // Length
+		b[point+6] = byte(((l1 - 6) & 0xff00) >> 8)
+		b[point+7] = byte((l1 - 6) & 0x00ff) // Length2
 	}
-	var b = dbuf.Bytes()
-	var l1 = len(b)
-	b[0] = byte((l1 & 0xff00) >> 8)
-	b[1] = byte(l1 & 0x00ff) // Length
-	b[6] = byte(((l1 - 6) & 0xff00) >> 8)
-	b[7] = byte((l1 - 6) & 0x00ff) // Length2
-	conn.conn.Write(b)
+	conn.conn.Write(buf.Bytes())
 	return nil
 }
 
 func (conn *Conn) Read() (*DRDA, error) {
 	var b1 = make([]byte, 2)
-	conn.conn.Read(b1)
+	n, err := conn.conn.Read(b1)
+	if n != 2 {
+		return &DRDA{}, errors.New("Read DRDA DMM length declare not 2 bit")
+	}
 	var length = (int32(b1[0]) << 8) | int32(b1[1])
 	var b2 = make([]byte, length-2)
-	n, err := conn.conn.Read(b2)
+	n, err = conn.conn.Read(b2)
 	if err != nil {
 		return &DRDA{}, err
 	}
@@ -89,6 +96,9 @@ func (conn *Conn) Read() (*DRDA, error) {
 	}
 	for i := 8; i < len(b2); {
 		var pl = (int32(b2[i]) << 8) | int32(b2[i+1])
+		if pl == 0 {
+			pl = int32(len(b2) - i)
+		}
 		drda.Parameters = append(drda.Parameters,
 			&Parameter{
 				Length:    pl,

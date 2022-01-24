@@ -3,8 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
+)
+
+var (
+	SRVNAM, _ = os.Hostname()
+	SRVRLSLV  = "SQL11055"
+	EXTNAM    = "GOLANG KANRI DRDA"
+	SRVCLSNM  = "DRDA/GOLANG"
 )
 
 func main() {
@@ -12,94 +18,108 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	hostname, err := os.Hostname()
+	conn.Write(&DRDA{
+		DDM: &DDM{Magic: 0xd0, Format: 0x41, CorrelId: 1, CodePoint: CP_EXCSAT},
+		Parameters: []*Parameter{
+			{CodePoint: CP_EXTNAM, Payload: ToEBCDIC([]byte(EXTNAM))},
+			{CodePoint: CP_SRVNAM, Payload: ToEBCDIC([]byte(SRVNAM))},
+			{CodePoint: CP_SRVCLSNM, Payload: ToEBCDIC([]byte(SRVCLSNM))},
+			{CodePoint: CP_SRVRLSLV, Payload: ToEBCDIC([]byte(SRVRLSLV))},
+			{CodePoint: CP_MGRLVLLS, Payload: []byte{
+				0x14, 0x03, 0x00, 0x07, // AGENT
+				0x24, 0x07, 0x00, 0x0a, // SQLAM
+				0x24, 0x0f, 0x00, 0x08, // RDB
+				0x14, 0x40, 0x00, 0x09, // SECMGR AES
+				0x14, 0x74, 0x00, 0x08, // CMNTCPIP
+				0x1c, 0x08, 0x04, 0xb8, // UNICODEMGR CCSID_1208 UTF-8
+				// 0x14, 0x03, 0x00, 0x0a, // AGENT
+				// 0x24, 0x07, 0x00, 0x0b, // SQLAM
+				// 0x14, 0x74, 0x00, 0x05, // CMNTCPIP
+				// 0x24, 0x0f, 0x00, 0x0c, // RDB
+				// 0x14, 0x40, 0x00, 0x0a, // SECMGR AES
+				// 0x1c, 0x08, 0x04, 0xb8, // UNICODEMGR CCSID_1208 UTF-8
+			}},
+		}},
+		&DRDA{
+			DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: CP_ACCSEC},
+			Parameters: []*Parameter{
+				{CodePoint: CP_SECMEC, Payload: []byte{
+					0x00, 0x03, // USER_PASSWORD
+					// 0x00, 0x04, // USER_ONLY
+					// 0x00, 0x05, // CHANGE_PASSWORD
+					// 0x00, 0x06, // USER_PASS_SUBST
+					// 0x00, 0x07, // USER_ENC_PASS
+					// 0x00, 0x09, // ENC_USER_ENC_PASS
+					// 0x00, 0x0a, // ENC_CHANGE_PASS
+					// 0x00, 0x0b, // KERBEROS
+					// 0x00, 0x0c, // ENC_USER_DATA
+					// 0x00, 0x0d, // ENC_USER_ENC_PASS_ENC_DATA
+					// 0x00, 0x0e, // ENC_USER_ENC_PASS_ENC_NEWPASS_ENC_DATA
+				}},
+				{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(
+					conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)),
+				))},
+			}},
+	)
+
+	drda, err := conn.Read()
 	if err != nil {
 		panic(err)
 	}
-	conn.Write(&DRDA{
-		DDM: &DDM{Magic: 0xd0, Format: 0x41, CorrelId: 1, CodePoint: EXCSAT},
-		Parameters: []*Parameter{
-			{CodePoint: EXTNAM, Payload: ToEBCDIC([]byte("DRDA"))},
-			{CodePoint: MGRLVLLS, Payload: []byte{
-				0x14, 0x03, 0x00, 0x0a, // AGENT
-				0x24, 0x07, 0x00, 0x0b, // SQLAM
-				0x14, 0x74, 0x00, 0x05, // CMNTCPIP
-				0x24, 0x0f, 0x00, 0x0c, // RDB
-				0x14, 0x40, 0x00, 0x0a, // SECMGR AES
-				0x1c, 0x08, 0x04, 0xb8, // UNICODEMGR CCSID_1208 UTF-8
-			}},
-			{CodePoint: SRVCLSNM, Payload: ToEBCDIC([]byte("DRDA(GOLANG)/" + strings.ToUpper(runtime.GOOS)))},
-			{CodePoint: SRVNAM, Payload: ToEBCDIC([]byte(hostname))},
-			{CodePoint: SRVRLSLV, Payload: ToEBCDIC([]byte("SQL11055"))},
-		},
-	})
-	conn.Write(&DRDA{
-		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: ACCSEC},
-		Parameters: []*Parameter{
-			{CodePoint: SECMEC, Payload: []byte{
-				0x00, 0x03, // USER_PASSWORD
-				// 0x00, 0x04, // USER_ONLY
-				// 0x00, 0x05, // CHANGE_PASSWORD
-				// 0x00, 0x06, // USER_PASS_SUBST
-				// 0x00, 0x07, // USER_ENC_PASS
-				// 0x00, 0x09, // ENC_USER_ENC_PASS
-				// 0x00, 0x0a, // ENC_CHANGE_PASS
-				// 0x00, 0x0b, // KERBEROS
-				// 0x00, 0x0c, // ENC_USER_DATA
-				// 0x00, 0x0d, // ENC_USER_ENC_PASS_ENC_DATA
-				// 0x00, 0x0e, // ENC_USER_ENC_PASS_ENC_NEWPASS_ENC_DATA
-			}},
-			{CodePoint: RDBNAM, Payload: []byte(conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)))},
-		},
-	})
-
-	conn.Write(&DRDA{
-		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: SECCHK},
-		Parameters: []*Parameter{
-			{CodePoint: SECMEC, Payload: []byte{
-				0x00, 0x03, // USER_PASSWORD
-				// 0x00, 0x04, // USER_ONLY
-				// 0x00, 0x05, // CHANGE_PASSWORD
-				// 0x00, 0x06, // USER_PASS_SUBST
-				// 0x00, 0x07, // USER_ENC_PASS
-				// 0x00, 0x09, // ENC_USER_ENC_PASS
-				// 0x00, 0x0a, // ENC_CHANGE_PASS
-				// 0x00, 0x0b, // KERBEROS
-				// 0x00, 0x0c, // ENC_USER_DATA
-				// 0x00, 0x0d, // ENC_USER_ENC_PASS_ENC_DATA
-				// 0x00, 0x0e, // ENC_USER_ENC_PASS_ENC_NEWPASS_ENC_DATA
-			}},
-			{CodePoint: RDBNAM, Payload: []byte(conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)))},
-			{CodePoint: USRID, Payload: []byte(conn.userid)},
-			{CodePoint: PASSWORD, Payload: []byte(conn.passwd)},
-		},
-	})
-
-	conn.Write(&DRDA{
-		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: ACCRDB},
-		Parameters: []*Parameter{
-			{CodePoint: SECMEC, Payload: []byte{
-				0x00, 0x03, // USER_PASSWORD
-				// 0x00, 0x04, // USER_ONLY
-				// 0x00, 0x05, // CHANGE_PASSWORD
-				// 0x00, 0x06, // USER_PASS_SUBST
-				// 0x00, 0x07, // USER_ENC_PASS
-				// 0x00, 0x09, // ENC_USER_ENC_PASS
-				// 0x00, 0x0a, // ENC_CHANGE_PASS
-				// 0x00, 0x0b, // KERBEROS
-				// 0x00, 0x0c, // ENC_USER_DATA
-				// 0x00, 0x0d, // ENC_USER_ENC_PASS_ENC_DATA
-				// 0x00, 0x0e, // ENC_USER_ENC_PASS_ENC_NEWPASS_ENC_DATA
-			}},
-			{CodePoint: RDBNAM, Payload: []byte(conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)))},
-			{CodePoint: USRID, Payload: []byte(conn.userid)},
-			{CodePoint: PASSWORD, Payload: []byte(conn.passwd)},
-		},
-	})
-
-	drda, _ := conn.Read()
-	fmt.Printf("%x\n", drda.Parameters[0].Payload)
-	drda, _ = conn.Read()
 	fmt.Printf("%x\n", drda.DDM.CodePoint)
+	drda, err = conn.Read()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%x\n", drda.DDM.CodePoint)
+
+	conn.Write(
+		&DRDA{
+			DDM: &DDM{Magic: 0xd0, Format: 0x41, CorrelId: 1, CodePoint: CP_SECCHK},
+			Parameters: []*Parameter{
+				{CodePoint: CP_SECMEC, Payload: []byte{
+					0x00, 0x03, // USER_PASSWORD
+				}},
+				{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(
+					conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)),
+				))},
+				{CodePoint: CP_USRID, Payload: ToEBCDIC([]byte(conn.userid))},
+				{CodePoint: CP_PASSWORD, Payload: ToEBCDIC([]byte(conn.passwd))},
+			}},
+		&DRDA{
+			DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: CP_ACCRDB},
+			Parameters: []*Parameter{
+				{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(
+					conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)),
+				))},
+				{CodePoint: CP_RDBACCCL, Payload: []byte{0x24, 0x07}},
+				{CodePoint: CP_PRDID, Payload: ToEBCDIC([]byte(SRVRLSLV))},
+				{CodePoint: CP_PRDDTA, Payload: ToEBCDIC([]byte(EXTNAM))},
+				{CodePoint: CP_TYPDEFNAM, Payload: ToEBCDIC([]byte("QTDSQLASC"))},
+				{CodePoint: CP_TYPDEFOVR, Payload: []byte{
+					0x00, 0x06, 0x11, 0x9c,
+					0x04, 0xb8, 0x00, 0x06,
+					0x11, 0x9d, 0x04, 0xb0,
+					0x00, 0x06, 0x11, 0x9e,
+					0x04, 0xb8, 0x00, 0x06,
+					0x19, 0x13, 0x04, 0xb8,
+				}},
+			}},
+	)
+	drda, err = conn.Read()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%x\n", drda.DDM.CodePoint)
+	drda, err = conn.Read()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%x\n", drda.DDM.CodePoint)
+	drda, err = conn.Read()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%x\n", drda.Parameters[0].Payload)
 	conn.Close()
 }
