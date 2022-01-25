@@ -97,7 +97,12 @@ func (conn *Conn) Read() (*DRDA, error) {
 	for i := 8; i < len(b2); {
 		var pl = (int32(b2[i]) << 8) | int32(b2[i+1])
 		if pl == 0 {
-			pl = int32(len(b2) - i)
+			// DATA
+			for ; i+4+int(pl) < len(b2); pl++ {
+				if b2[i+4+int(pl)] == 0xff {
+					break
+				}
+			}
 		}
 		drda.Parameters = append(drda.Parameters,
 			&Parameter{
