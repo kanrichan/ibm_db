@@ -1,8 +1,14 @@
 package main
 
-import "database/sql/driver"
+import (
+	"database/sql/driver"
 
-type Conn struct{}
+	"github.com/Yiwen-Chan/DRDA/drda"
+)
+
+type Conn struct {
+	conn *drda.Conn
+}
 
 // Prepare returns a prepared statement, bound to this connection.
 func (conn *Conn) Prepare(query string) (driver.Stmt, error) {
