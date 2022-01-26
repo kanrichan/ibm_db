@@ -1,4 +1,4 @@
-package main
+package drda
 
 const (
 	// DRDA (Exchange Server Attributes)
@@ -19,8 +19,8 @@ const (
 	CP_SECCHK   = 0x106e // DDM (SECCHK)
 	CP_USRID    = 0x11a0 // Parameter (User ID at the Target System)
 	CP_PASSWORD = 0x11a1 // Parameter (Password)
-	//SECMEC = 0x11a2 // Parameter (Security Mechanism)
-	//RDBNAM = 0x2110 // Parameter (Relational Database Name)
+	//CP_SECMEC = 0x11a2 // Parameter (Security Mechanism)
+	//CP_RDBNAM = 0x2110 // Parameter (Relational Database Name)
 
 	// DRDA (Access RDB)
 	CP_ACCRDB    = 0x2001 // DDM (ACCRDB)
@@ -29,7 +29,7 @@ const (
 	CP_PRDDTA    = 0x2104 // Parameter (Product-Specific Data)
 	CP_TYPDEFNAM = 0x002f // Parameter (Data Type Definition Name)
 	CP_TYPDEFOVR = 0x0035 // Parameter (TYPDEF Overrides)
-	//RDBNAM = 0x2110 // Parameter (Relational Database Name)
+	//CP_RDBNAM = 0x2110 // Parameter (Relational Database Name)
 )
 
 type DRDA struct {

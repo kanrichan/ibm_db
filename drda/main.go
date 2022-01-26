@@ -1,4 +1,4 @@
-package main
+package drda
 
 import (
 	"fmt"
@@ -121,5 +121,6 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("%x\n", drda.Parameters[0].Payload)
+
 	conn.Close()
 }
