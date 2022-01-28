@@ -51,10 +51,14 @@ func (conn *Conn) Write(drdas ...*DRDA) error {
 			buf.WriteByte(byte((parameter.CodePoint & 0xff00) >> 8))
 			buf.WriteByte(byte(parameter.CodePoint & 0x00ff)) // CodePoint
 			buf.Write(parameter.Payload)                      // Payload
-			var b = buf.Bytes()
-			var l = len(b) - subpoint
-			b[subpoint] = byte((l & 0xff00) >> 8)
-			b[subpoint+1] = byte(l & 0x00ff) // Length
+			if parameter.CodePoint != CP_DATA {
+				var b = buf.Bytes()
+				var l = len(b) - subpoint
+				b[subpoint] = byte((l & 0xff00) >> 8)
+				b[subpoint+1] = byte(l & 0x00ff) // Length
+			} else {
+				buf.WriteByte(0xff)
+			}
 		}
 		var b = buf.Bytes()
 		var l1 = len(b) - point
@@ -95,23 +99,27 @@ func (conn *Conn) Read() (*DRDA, error) {
 		Parameters: make([]*Parameter, 0),
 	}
 	for i := 8; i < len(b2); {
-		var pl = (int32(b2[i]) << 8) | int32(b2[i+1])
-		if pl == 0 {
-			// DATA
-			for ; i+4+int(pl) < len(b2); pl++ {
-				if b2[i+4+int(pl)] == 0xff {
-					break
-				}
-			}
+		var length = (int32(b2[i]) << 8) | int32(b2[i+1])
+		var codepoint = (int32(b2[i+2]) << 8) | int32(b2[i+3])
+		if codepoint == CP_DATA {
+			drda.Parameters = append(drda.Parameters,
+				&Parameter{
+					Length:    length,
+					CodePoint: codepoint,
+					Payload:   b2[i+4 : len(b2)-2],
+				},
+			)
+			break
+		} else {
+			drda.Parameters = append(drda.Parameters,
+				&Parameter{
+					Length:    length,
+					CodePoint: codepoint,
+					Payload:   b2[i+4 : i+int(length)],
+				},
+			)
+			i += int(length)
 		}
-		drda.Parameters = append(drda.Parameters,
-			&Parameter{
-				Length:    pl,
-				CodePoint: (int32(b2[i+2]) << 8) | int32(b2[i+3]),
-				Payload:   b2[i+4 : i+int(pl)],
-			},
-		)
-		i += int(pl)
 	}
 	return &drda, nil
 }
