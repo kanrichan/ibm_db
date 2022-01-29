@@ -107,7 +107,7 @@ func (conn *Conn) Select() error {
 	var SQLSTT = &DRDA{
 		DDM: &DDM{Magic: 0xd0, Format: 0x43, CorrelId: 1, CodePoint: CP_SQLSTT},
 		Parameters: []*Parameter{
-			{CodePoint: CP_DATA, Payload: []byte("*SELECT * FROM SAMPLE FOR READ ONLY")},
+			{CodePoint: CP_DATA, Payload: []byte(`"SELECT * FROM SAMPLE FOR READ ONLY`)},
 		},
 	}
 	var OPNQRY = &DRDA{
@@ -121,21 +121,23 @@ func (conn *Conn) Select() error {
 			{CodePoint: CP_QRYBLKSZ, Payload: []byte{0x00, 0x00, 0x7f, 0xff}},
 			{CodePoint: CP_QRYCLSIMP, Payload: []byte{0x01}},
 			{CodePoint: CP_OUTOVROPT, Payload: []byte{0x03}},
-			{CodePoint: CP_UNKNOWN, Payload: []byte{0xf1}},
-			{CodePoint: CP_UNKNOWN, Payload: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00}},
-			{CodePoint: CP_UNKNOWN, Payload: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00}},
-			{CodePoint: CP_UNKNOWN, Payload: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0x00, 0x00}},
+			{CodePoint: 0x214b, Payload: []byte{0xf1}},
+			{CodePoint: 0x2137, Payload: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00}},
+			{CodePoint: 0x2136, Payload: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00}},
+			{CodePoint: 0x2134, Payload: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0x00, 0x00}},
 		},
 	}
 	var RDBCMM = &DRDA{
 		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 1, CodePoint: CP_RDBCMM},
 	}
 	conn.Write(PRPSQLSTT, SQLATTR, SQLSTT, OPNQRY)
+	fmt.Println("0")
+	conn.Read()
 	fmt.Println("1")
 	conn.Read()
 	fmt.Println("2")
 	conn.Read()
-	conn.Read()
+	fmt.Println("3")
 	conn.Read()
 	conn.Read()
 	conn.Read()

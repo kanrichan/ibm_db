@@ -54,9 +54,9 @@ const (
 	CP_OUTOVROPT = 0x2147 // Parameter (Output Override Option)
 	CP_UNKNOWN   = 0x214b // Parameter (Unknown (0x214b))
 	//CP_PKGNAMCSN = 0x2113 // Parameter (RDB Package Name, Consistency Token, and Section Number)
-	//CP_UNKNOWN   = 0x214b // Parameter (Unknown (0x214b))
-	//CP_UNKNOWN   = 0x214b // Parameter (Unknown (0x214b))
-	//CP_UNKNOWN   = 0x214b // Parameter (Unknown (0x214b))
+	//CP_UNKNOWN   = 0x2137 // Parameter (Unknown (0x214b))
+	//CP_UNKNOWN   = 0x2136 // Parameter (Unknown (0x214b))
+	//CP_UNKNOWN   = 0x2134 // Parameter (Unknown (0x214b))
 
 	// DRDA (RDB Commit Unit of Work)
 	CP_RDBCMM = 0x200e // DDM (RDBCMM)
