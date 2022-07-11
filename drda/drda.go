@@ -1,5 +1,9 @@
 package drda
 
+import (
+	"bytes"
+)
+
 const (
 	// LOGIN
 	// DRDA (Exchange Server Attributes)
@@ -80,4 +84,78 @@ type Parameter struct {
 	Length    int32
 	CodePoint int32
 	Payload   []byte
+}
+
+func Int32ToBytes(value int32) []byte {
+	return []byte{byte((value & 0xff00) >> 8), byte(value & 0x00ff)}
+}
+
+func BytesToInt32(data []byte) int32 {
+	if len(data) != 2 {
+		return 0
+	}
+	return (int32(data[0]) << 8) | int32(data[1])
+}
+
+func WriteDRDA(drda *DRDA) ([]byte, error) {
+	// DDM
+	drda.DDM.Length = 10
+	// Parameters
+	for _, para := range drda.Parameters {
+		para.Length = int32(len(para.Payload) + 4)
+		drda.DDM.Length += para.Length
+	}
+	drda.DDM.Length2 = drda.DDM.Length - 6
+
+	var buf = bytes.NewBuffer(make([]byte, 0))
+	// DDM
+	buf.Write(Int32ToBytes(drda.DDM.Length))    // Length
+	buf.WriteByte(drda.DDM.Magic)               // Magic
+	buf.WriteByte(drda.DDM.Format)              // Format
+	buf.Write(Int32ToBytes(drda.DDM.CorrelId))  // CorrelId
+	buf.Write(Int32ToBytes(drda.DDM.Length2))   // Length2
+	buf.Write(Int32ToBytes(drda.DDM.CodePoint)) // codePoint
+
+	// Parameters
+	for _, para := range drda.Parameters {
+		buf.Write(Int32ToBytes(para.Length))    // Length
+		buf.Write(Int32ToBytes(para.CodePoint)) // CodePoint
+		buf.Write(para.Payload)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func ReadDRDA(data []byte) (*DRDA, error) {
+	var buf = bytes.NewBuffer(data)
+	// DDM
+	var drda = &DRDA{DDM: &DDM{
+		Length:    BytesToInt32(buf.Next(2)), // Length
+		Magic:     buf.Next(1)[0],            // Magic
+		Format:    buf.Next(1)[0],            // Format
+		CorrelId:  BytesToInt32(buf.Next(2)), // CorrelId
+		Length2:   BytesToInt32(buf.Next(2)), // Length2
+		CodePoint: BytesToInt32(buf.Next(2)), // CodePoint
+	}}
+
+	var left = drda.DDM.Length - 10
+	// Parameters
+	for {
+		var para = &Parameter{}
+		para.Length = BytesToInt32(buf.Next(2))    // Length
+		para.CodePoint = BytesToInt32(buf.Next(2)) // CodePoint
+		switch para.CodePoint {
+		case CP_DATA:
+			para.Payload = buf.Bytes()
+			drda.Parameters = append(drda.Parameters, para)
+			return drda, nil
+		default:
+			para.Payload = buf.Next(int(para.Length - 4)) // Payload
+			drda.Parameters = append(drda.Parameters, para)
+			left -= para.Length
+			if left <= 0 {
+				return drda, nil
+			}
+		}
+	}
 }
