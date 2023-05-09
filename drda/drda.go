@@ -14,11 +14,24 @@ const (
 	CP_SRVNAM   = 0x116d // Parameter (Server Name)
 	CP_SRVRLSLV = 0x115a // Parameter (Server Product Release Level)
 
+	// DRDA (Server Attributes Reply Data)
+	CP_EXCSATRD = 0x1443 // DDM (EXCSATRD)
+
+	CP_RDBNFNRM = 0x2211
+	CP_SRVDGN   = 0x1153
+
+	CP_SQLCARD = 0x2411
+
 	// DRDA (Access Security)
 	CP_ACCSEC = 0x106d // DDM (ACCSEC)
 	CP_SECMEC = 0x11a2 // Parameter (Security Mechanism)
 	CP_RDBNAM = 0x2110 // Parameter (Relational Database Name)
 	CP_SECTKN = 0x11dc // Parameter (Security Token)
+
+	// DRDA (Access Security Reply Data)
+	CP_ACCSECRD = 0x14ac // DDM (ACCSECRD)
+
+	CP_SQLERRRM = 0x2213
 
 	// DRDA (Security Check)
 	CP_SECCHK   = 0x106e // DDM (SECCHK)
@@ -84,6 +97,18 @@ type Parameter struct {
 	Length    int32
 	CodePoint int32
 	Payload   []byte
+}
+
+func (drda *DRDA) GetParameter(cp int32) *Parameter {
+	if drda.Parameters == nil || len(drda.Parameters) == 0 {
+		return nil
+	}
+	for _, param := range drda.Parameters {
+		if param.CodePoint == cp {
+			return param
+		}
+	}
+	return nil
 }
 
 func Int32ToBytes(value int32) []byte {

@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"net"
+	"sync"
 )
 
 type Conn struct {
 	conn net.Conn
+
+	m sync.Mutex
 
 	addr   string
 	dbname string

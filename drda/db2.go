@@ -1,67 +1,99 @@
 package drda
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 )
 
-var (
-	SRVNAM, _ = os.Hostname()
-	SRVRLSLV  = "SQL11055"
-	EXTNAM    = "GOLANG KANRI DRDA"
-	SRVCLSNM  = "DRDA/GOLANG"
+const (
+	EXTNAM   = "GOLANG DRDA"
+	SRVCLSNM = "DRDA/GOLANG"
+	SRVRLSLV = "SQL11055"
 )
 
 func (conn *Conn) Login() error {
-	var EXCSAT = &DRDA{
+	conn.m.Lock()
+	defer conn.m.Unlock()
+	var srvnam, err = os.Hostname()
+	if err != nil {
+		return err
+	}
+	var rdbnam = conn.dbname + strings.Repeat(" ", 18-len(conn.dbname))
+	var excsat = &DRDA{
 		DDM: &DDM{Magic: 0xd0, Format: 0x41, CorrelId: 1, CodePoint: CP_EXCSAT},
 		Parameters: []*Parameter{
 			{CodePoint: CP_EXTNAM, Payload: ToEBCDIC([]byte(EXTNAM))},
-			{CodePoint: CP_SRVNAM, Payload: ToEBCDIC([]byte(SRVNAM))},
+			{CodePoint: CP_SRVNAM, Payload: ToEBCDIC([]byte(srvnam))},
 			{CodePoint: CP_SRVCLSNM, Payload: ToEBCDIC([]byte(SRVCLSNM))},
 			{CodePoint: CP_SRVRLSLV, Payload: ToEBCDIC([]byte(SRVRLSLV))},
 			{CodePoint: CP_MGRLVLLS, Payload: []byte{
-				0x14, 0x03, 0x00, 0x07, // AGENT
-				0x24, 0x07, 0x00, 0x0a, // SQLAM
-				0x24, 0x0f, 0x00, 0x08, // RDB
+				0x14, 0x03, 0x00, 0x0a, // AGENT
+				0x24, 0x07, 0x00, 0x0b, // SQLAM
+				0x24, 0x0f, 0x00, 0x0c, // RDB
 				0x14, 0x40, 0x00, 0x09, // SECMGR AES
 				0x14, 0x74, 0x00, 0x08, // CMNTCPIP
 				0x1c, 0x08, 0x04, 0xb8, // UNICODEMGR CCSID_1208 UTF-8
 			}},
 		},
 	}
-	var ACCSEC = &DRDA{
+	var accsec = &DRDA{
 		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: CP_ACCSEC},
 		Parameters: []*Parameter{
 			{CodePoint: CP_SECMEC, Payload: []byte{
-				0x00, 0x03, // USER_PASSWORD
+				// 0x00 0x03 USRIDPWD Neither user ID nor password is encrypted
+				// 0x00 0x09 EUSRIDPWD Both user ID and password are encrypted
+				// 0x00 0x0D EUSRPWDDTA The user ID, Password, and Data are encrypted
+				0x00, 0x03,
 			}},
-			{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(
-				conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)),
-			))},
+			{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(rdbnam))},
 		},
 	}
-	var SECCHK = &DRDA{
+	err = conn.Write(excsat, accsec)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < 2; i++ {
+		drda, err := conn.Read()
+		if err != nil {
+			return err
+		}
+		switch drda.DDM.CodePoint {
+		case CP_EXCSATRD:
+			// TODO
+		case CP_ACCSECRD:
+			secmec := drda.GetParameter(CP_SECMEC)
+			if secmec == nil {
+				return errors.New("unknown error")
+			}
+			if len(secmec.Payload) != 2 ||
+				secmec.Payload[0] != 0x00 || secmec.Payload[1] != 0x03 {
+				return errors.New("unknown error")
+			}
+		case CP_RDBNFNRM:
+			return errors.New("database not found")
+		default:
+			return errors.New("unknown error")
+		}
+	}
+
+	var secchk = &DRDA{
 		DDM: &DDM{Magic: 0xd0, Format: 0x41, CorrelId: 1, CodePoint: CP_SECCHK},
 		Parameters: []*Parameter{
 			{CodePoint: CP_SECMEC, Payload: []byte{
 				0x00, 0x03, // USER_PASSWORD
 			}},
-			{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(
-				conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)),
-			))},
+			{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(rdbnam))},
 			{CodePoint: CP_USRID, Payload: ToEBCDIC([]byte(conn.userid))},
 			{CodePoint: CP_PASSWORD, Payload: ToEBCDIC([]byte(conn.passwd))},
 		},
 	}
-	var ACCRDB = &DRDA{
+	var accrdb = &DRDA{
 		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: CP_ACCRDB},
 		Parameters: []*Parameter{
-			{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(
-				conn.dbname + strings.Repeat(" ", 18-len(conn.dbname)),
-			))},
-			{CodePoint: CP_RDBACCCL, Payload: []byte{0x24, 0x07}},
+			{CodePoint: CP_RDBNAM, Payload: ToEBCDIC([]byte(rdbnam))},
+			{CodePoint: CP_RDBACCCL, Payload: []byte{0x24, 0x07}}, // SQLAM
 			{CodePoint: CP_PRDID, Payload: ToEBCDIC([]byte(SRVRLSLV))},
 			{CodePoint: CP_PRDDTA, Payload: ToEBCDIC([]byte(EXTNAM))},
 			{CodePoint: CP_TYPDEFNAM, Payload: ToEBCDIC([]byte("QTDSQLASC"))},
@@ -75,10 +107,10 @@ func (conn *Conn) Login() error {
 			}},
 		},
 	}
-	conn.Write(EXCSAT, ACCSEC)
-	conn.Read()
-	conn.Read()
-	conn.Write(SECCHK, ACCRDB)
+	err = conn.Write(secchk, accrdb)
+	if err != nil {
+		return err
+	}
 	conn.Read()
 	conn.Read()
 	conn.Read()
