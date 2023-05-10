@@ -2,6 +2,9 @@ package drda
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
+	"strconv"
 )
 
 const (
@@ -20,7 +23,7 @@ const (
 	CP_RDBNFNRM = 0x2211
 	CP_SRVDGN   = 0x1153
 
-	CP_SQLCARD = 0x2411
+	CP_SQLCARD = 0x2408
 
 	// DRDA (Access Security)
 	CP_ACCSEC = 0x106d // DDM (ACCSEC)
@@ -183,4 +186,87 @@ func ReadDRDA(data []byte) (*DRDA, error) {
 			}
 		}
 	}
+}
+
+type SQLCARD struct {
+	DDM      *DDM
+	State    int64
+	ErrProc  string
+	RDBName  string
+	MessageM string
+	MessageS string
+}
+
+func (drda *DRDA) ReadSQLCARD() (*SQLCARD, error) {
+	if drda.DDM.CodePoint != CP_SQLCARD {
+		return nil, errors.New("mismatch code point")
+	}
+	data := drda.GetParameter(CP_DATA)
+	if data == nil || len(data.Payload) <= 54 {
+		return nil, errors.New("missing parameter data")
+	}
+	if data.Payload[0] != 0x00 { // SQLCAGRP FLAG
+		return nil, errors.New("unsupport sqlcagrp flag")
+	}
+	var sqlcard = &SQLCARD{
+		DDM: drda.DDM,
+	}
+	var err error
+	sqlcard.State, err = strconv.ParseInt(
+		string(data.Payload[1:6]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	sqlcard.ErrProc = string(data.Payload[6:18])
+	if data.Payload[18] != 0x00 { // SQLCAXGRP FLAG
+		return nil, errors.New("uunsupport sqlcaxgrp flag")
+	}
+	index := 50
+	len1 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+	sqlcard.RDBName = string(data.Payload[index+2 : index+2+int(len1)])
+	index += int(len1) + 2
+	len2 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+	sqlcard.MessageM = string(data.Payload[index+2 : index+2+int(len2)])
+	index += int(len2) + 2
+	len3 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+	sqlcard.MessageS = string(data.Payload[index+2 : index+2+int(len3)])
+	index += int(len3) + 2
+	return sqlcard, nil
+}
+
+type EXCSAT struct {
+	DDM        *DDM
+	EXTNAM     string
+	SRVNAM     string
+	SRVCLSNM   string
+	SRVRLSLV   string
+	AGENT      int
+	SQLAM      int
+	RDB        int
+	SECMGR     int
+	CMNTCPIP   int
+	UNICODEMGR int
+}
+
+func (excsat *EXCSAT) WriteEXCSAT() (*DRDA, error) {
+	if excsat.DDM.CodePoint != CP_EXCSAT {
+		return nil, errors.New("mismatch code point")
+	}
+	return &DRDA{
+		DDM: excsat.DDM,
+		Parameters: []*Parameter{
+			{CodePoint: CP_EXTNAM, Payload: ToEBCDIC([]byte(excsat.EXTNAM))},
+			{CodePoint: CP_SRVNAM, Payload: ToEBCDIC([]byte(excsat.SRVNAM))},
+			{CodePoint: CP_SRVCLSNM, Payload: ToEBCDIC([]byte(excsat.SRVCLSNM))},
+			{CodePoint: CP_SRVRLSLV, Payload: ToEBCDIC([]byte(excsat.SRVRLSLV))},
+			{CodePoint: CP_MGRLVLLS, Payload: []byte{
+				0x14, 0x03, byte((excsat.AGENT & 0xff00) >> 8), byte(excsat.AGENT & 0x00ff), // AGENT
+				0x24, 0x07, byte((excsat.SQLAM & 0xff00) >> 8), byte(excsat.SQLAM & 0x00ff), // SQLAM
+				0x24, 0x0f, byte((excsat.RDB & 0xff00) >> 8), byte(excsat.RDB & 0x00ff), // RDB
+				0x14, 0x40, byte((excsat.SECMGR & 0xff00) >> 8), byte(excsat.SECMGR & 0x00ff), // SECMGR
+				0x14, 0x74, byte((excsat.CMNTCPIP & 0xff00) >> 8), byte(excsat.CMNTCPIP & 0x00ff), // CMNTCPIP
+				0x1c, 0x08, byte((excsat.UNICODEMGR & 0xff00) >> 8), byte(excsat.UNICODEMGR & 0x00ff), // UNICODEMGR CCSID_1208 UTF-8
+			}},
+		},
+	}, nil
 }
