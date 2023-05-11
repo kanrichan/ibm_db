@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -129,9 +130,9 @@ func WriteDRDA(drda *DRDA) ([]byte, error) {
 	// DDM
 	drda.DDM.Length = 10
 	// Parameters
-	for _, para := range drda.Parameters {
-		para.Length = int32(len(para.Payload) + 4)
-		drda.DDM.Length += para.Length
+	for _, param := range drda.Parameters {
+		param.Length = int32(len(param.Payload) + 4)
+		drda.DDM.Length += param.Length
 	}
 	drda.DDM.Length2 = drda.DDM.Length - 6
 
@@ -142,13 +143,18 @@ func WriteDRDA(drda *DRDA) ([]byte, error) {
 	buf.WriteByte(drda.DDM.Format)              // Format
 	buf.Write(Int32ToBytes(drda.DDM.CorrelId))  // CorrelId
 	buf.Write(Int32ToBytes(drda.DDM.Length2))   // Length2
-	buf.Write(Int32ToBytes(drda.DDM.CodePoint)) // codePoint
+	buf.Write(Int32ToBytes(drda.DDM.CodePoint)) // CodePoint
 
 	// Parameters
-	for _, para := range drda.Parameters {
-		buf.Write(Int32ToBytes(para.Length))    // Length
-		buf.Write(Int32ToBytes(para.CodePoint)) // CodePoint
-		buf.Write(para.Payload)
+	for _, param := range drda.Parameters {
+		if param.CodePoint != CP_DATA {
+			buf.Write(Int32ToBytes(param.Length)) // Length
+		} else {
+			buf.WriteByte(0x00)
+			buf.WriteByte(0x00)
+		}
+		buf.Write(Int32ToBytes(param.CodePoint)) // CodePoint
+		buf.Write(param.Payload)
 	}
 
 	return buf.Bytes(), nil
@@ -248,25 +254,106 @@ type EXCSAT struct {
 	UNICODEMGR int
 }
 
-func (excsat *EXCSAT) WriteEXCSAT() (*DRDA, error) {
-	if excsat.DDM.CodePoint != CP_EXCSAT {
+func (o *EXCSAT) WriteEXCSAT() (*DRDA, error) {
+	if o.DDM.CodePoint != CP_EXCSAT {
 		return nil, errors.New("mismatch code point")
 	}
 	return &DRDA{
-		DDM: excsat.DDM,
+		DDM: o.DDM,
 		Parameters: []*Parameter{
-			{CodePoint: CP_EXTNAM, Payload: ToEBCDIC([]byte(excsat.EXTNAM))},
-			{CodePoint: CP_SRVNAM, Payload: ToEBCDIC([]byte(excsat.SRVNAM))},
-			{CodePoint: CP_SRVCLSNM, Payload: ToEBCDIC([]byte(excsat.SRVCLSNM))},
-			{CodePoint: CP_SRVRLSLV, Payload: ToEBCDIC([]byte(excsat.SRVRLSLV))},
+			{CodePoint: CP_EXTNAM, Payload: ToEBCDIC([]byte(o.EXTNAM))},
+			{CodePoint: CP_SRVNAM, Payload: ToEBCDIC([]byte(o.SRVNAM))},
+			{CodePoint: CP_SRVCLSNM, Payload: ToEBCDIC([]byte(o.SRVCLSNM))},
+			{CodePoint: CP_SRVRLSLV, Payload: ToEBCDIC([]byte(o.SRVRLSLV))},
 			{CodePoint: CP_MGRLVLLS, Payload: []byte{
-				0x14, 0x03, byte((excsat.AGENT & 0xff00) >> 8), byte(excsat.AGENT & 0x00ff), // AGENT
-				0x24, 0x07, byte((excsat.SQLAM & 0xff00) >> 8), byte(excsat.SQLAM & 0x00ff), // SQLAM
-				0x24, 0x0f, byte((excsat.RDB & 0xff00) >> 8), byte(excsat.RDB & 0x00ff), // RDB
-				0x14, 0x40, byte((excsat.SECMGR & 0xff00) >> 8), byte(excsat.SECMGR & 0x00ff), // SECMGR
-				0x14, 0x74, byte((excsat.CMNTCPIP & 0xff00) >> 8), byte(excsat.CMNTCPIP & 0x00ff), // CMNTCPIP
-				0x1c, 0x08, byte((excsat.UNICODEMGR & 0xff00) >> 8), byte(excsat.UNICODEMGR & 0x00ff), // UNICODEMGR CCSID_1208 UTF-8
+				0x14, 0x03, byte((o.AGENT & 0xff00) >> 8), byte(o.AGENT & 0x00ff), // AGENT
+				0x24, 0x07, byte((o.SQLAM & 0xff00) >> 8), byte(o.SQLAM & 0x00ff), // SQLAM
+				0x24, 0x0f, byte((o.RDB & 0xff00) >> 8), byte(o.RDB & 0x00ff), // RDB
+				0x14, 0x40, byte((o.SECMGR & 0xff00) >> 8), byte(o.SECMGR & 0x00ff), // SECMGR
+				0x14, 0x74, byte((o.CMNTCPIP & 0xff00) >> 8), byte(o.CMNTCPIP & 0x00ff), // CMNTCPIP
+				0x1c, 0x08, byte((o.UNICODEMGR & 0xff00) >> 8), byte(o.UNICODEMGR & 0x00ff), // UNICODEMGR CCSID_1208 UTF-8
 			}},
+		},
+	}, nil
+}
+
+type PRPSQLSTT struct {
+	DDM       *DDM
+	RDBNAM    string
+	RDBCOLID  string // NULLID
+	PKGID     string // SYSSH200
+	PKGCNSTKN string // SYSLVL01
+	PKGSN     int16
+}
+
+func (o *PRPSQLSTT) WritePRPSQLSTT() (*DRDA, error) {
+	if o.DDM.CodePoint != CP_PRPSQLSTT {
+		return nil, errors.New("mismatch code point")
+	}
+	var buf = bytes.NewBuffer(make([]byte, 0, 64))
+	buf.Write(ToEBCDIC([]byte(o.RDBNAM + strings.Repeat(" ", 18-len(o.RDBNAM)))))
+	buf.Write(ToEBCDIC([]byte(o.RDBCOLID + strings.Repeat(" ", 18-len(o.RDBCOLID)))))
+	buf.Write(ToEBCDIC([]byte(o.PKGID + strings.Repeat(" ", 18-len(o.PKGID)))))
+	buf.WriteString(o.PKGCNSTKN)
+	buf.WriteByte(byte(o.PKGSN >> 8))
+	buf.WriteByte(byte(o.PKGSN))
+	return &DRDA{
+		DDM: &DDM{Magic: 0xd0, Format: 0x51, CorrelId: 1, CodePoint: CP_PRPSQLSTT},
+		Parameters: []*Parameter{
+			{CodePoint: CP_PKGNAMCSN, Payload: buf.Bytes()},
+			{CodePoint: CP_RTNSQLDA, Payload: []byte{0xf1}},
+			{CodePoint: CP_TYPSQLDA, Payload: []byte{0x04}},
+		},
+	}, nil
+}
+
+type SQLSTT struct {
+	DDM  *DDM
+	DATA string
+}
+
+func (o *SQLSTT) WriteSQLSTT() (*DRDA, error) {
+	if o.DDM.CodePoint != CP_SQLSTT {
+		return nil, errors.New("mismatch code point")
+	}
+	var buf = bytes.NewBuffer(make([]byte, 0, len(o.DATA)+2))
+	buf.WriteByte(byte(len(o.DATA)))
+	buf.WriteString(o.DATA)
+	buf.WriteByte(0xff)
+	return &DRDA{
+		DDM: o.DDM,
+		Parameters: []*Parameter{
+			{CodePoint: CP_DATA, Payload: buf.Bytes()},
+		},
+	}, nil
+}
+
+type OPNQRY struct {
+	DDM       *DDM
+	RDBNAM    string
+	RDBCOLID  string // NULLID
+	PKGID     string // SYSSH200
+	PKGCNSTKN string // SYSLVL01
+	PKGSN     int16
+}
+
+func (o *OPNQRY) WriteDSCSQLSTT() (*DRDA, error) {
+	if o.DDM.CodePoint != CP_OPNQRY {
+		return nil, errors.New("mismatch code point")
+	}
+	var buf = bytes.NewBuffer(make([]byte, 0, 64))
+	buf.Write(ToEBCDIC([]byte(o.RDBNAM + strings.Repeat(" ", 18-len(o.RDBNAM)))))
+	buf.Write(ToEBCDIC([]byte(o.RDBCOLID + strings.Repeat(" ", 18-len(o.RDBCOLID)))))
+	buf.Write(ToEBCDIC([]byte(o.PKGID + strings.Repeat(" ", 18-len(o.PKGID)))))
+	buf.WriteString(o.PKGCNSTKN)
+	buf.WriteByte(byte(o.PKGSN >> 8))
+	buf.WriteByte(byte(o.PKGSN))
+	return &DRDA{
+		DDM: &DDM{Magic: 0xd0, Format: 0x01, CorrelId: 2, CodePoint: CP_OPNQRY},
+		Parameters: []*Parameter{
+			{CodePoint: CP_PKGNAMCSN, Payload: buf.Bytes()},
+			{CodePoint: CP_QRYBLKSZ, Payload: []byte{0x00, 0x00, 0x7f, 0xff}}, // 32767
+			{CodePoint: CP_QRYCLSIMP, Payload: []byte{0x01}},
 		},
 	}, nil
 }

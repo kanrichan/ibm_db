@@ -111,9 +111,32 @@ func (conn *Conn) Login() error {
 	if err != nil {
 		return err
 	}
-	conn.Read()
-	conn.Read()
-	conn.Read()
+
+	for i := 0; i < 3; i++ {
+		drda, err := conn.Read()
+		if err != nil {
+			return err
+		}
+		switch drda.DDM.CodePoint {
+		// case CP_SQLERRRM:
+		// 	srvdgn := drda.GetParameter(CP_SRVDGN)
+		// 	if srvdgn == nil {
+		// 		return errors.New("unknown error")
+		// 	}
+		// 	return errors.New(string(ToASCII(srvdgn.Payload)))
+		case CP_SQLCARD:
+			sqlcard, err := drda.ReadSQLCARD()
+			switch {
+			case err != nil:
+				return err
+			case sqlcard.State < 0:
+				return fmt.Errorf("%5d %s %s%s", sqlcard.State,
+					sqlcard.ErrProc, sqlcard.MessageM, sqlcard.MessageS)
+			}
+		default:
+			// return errors.New("unknown error")
+		}
+	}
 	return nil
 }
 
