@@ -129,9 +129,9 @@ func (conn *Conn) Login() error {
 			switch {
 			case err != nil:
 				return err
-			case sqlcard.State < 0:
-				return fmt.Errorf("%5d %s %s%s", sqlcard.State,
-					sqlcard.ErrProc, sqlcard.MessageM, sqlcard.MessageS)
+			case sqlcard.SqlState < 0:
+				return fmt.Errorf("%5d %s %s%s", sqlcard.SqlState,
+					sqlcard.SqlErrProc, sqlcard.SqlMessageM, sqlcard.SqlMessageS)
 			}
 		default:
 			// return errors.New("unknown error")
