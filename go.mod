@@ -1,3 +1,3 @@
-module github.com/Yiwen-Chan/DRDA
+module github.com/kanrichan/ibm_db
 
-go 1.17
+go 1.19

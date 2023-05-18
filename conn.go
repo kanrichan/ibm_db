@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql/driver"
 
-	"github.com/Yiwen-Chan/DRDA/drda"
+	"github.com/kanrichan/ibm_db/drda"
 )
 
 type Conn struct {

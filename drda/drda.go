@@ -2,9 +2,7 @@ package drda
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
-	"strconv"
 	"strings"
 )
 
@@ -408,261 +406,160 @@ func (o *RDBCMM) WriteRDBCMM() (*DRDA, error) {
 	return &DRDA{DDM: o.DDM}, nil
 }
 
-type SQLCARD struct {
-	DDM         *DDM
-	SqlState    int64
-	SqlErrProc  string
-	RowsFetched uint64
-	RowsUpdated uint32
-	SqlErrs     []byte
-	SqlWarn     []byte
-	SqlRDBName  string
-	SqlMessageM string
-	SqlMessageS string
-}
-
-func (drda *DRDA) ReadSQLCARD() (*SQLCARD, error) {
-	if drda.DDM.CodePoint != CP_SQLCARD {
-		return nil, errors.New("mismatch code point")
-	}
-	data := drda.GetParameter(CP_DATA)
-	if data == nil || len(data.Payload) == 0 {
-		return nil, errors.New("missing parameter data")
-	}
-	index := 0
-	var sqlcard = &SQLCARD{
-		DDM: drda.DDM,
-	}
-	var err error
-	if data.Payload[index] != 0xFF { // SQLCAGRP FLAG
-		if len(data.Payload) < index+14 {
-			return nil, errors.New("prase sqlcagrp error")
-		}
-		sqlcard.SqlState, err = strconv.ParseInt(
-			string(data.Payload[index+1:index+6]), 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		sqlcard.SqlErrProc = string(data.Payload[index+6 : index+14])
-		index += 14
-	}
-	if data.Payload[index] != 0xFF { // SQLCAXGRP FLAG
-		if len(data.Payload) < index+36+6 {
-			return nil, errors.New("prase sqlcaxgrp error")
-		}
-		// TODO: INT64?
-		sqlcard.RowsFetched = binary.BigEndian.Uint64(data.Payload[index+1 : index+9])
-		sqlcard.RowsUpdated = binary.BigEndian.Uint32(data.Payload[index+9 : index+13])
-		sqlcard.SqlErrs = data.Payload[index+13 : index+25]
-		sqlcard.SqlWarn = data.Payload[index+25 : index+36]
-		index += 36
-		len1 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-		if len(data.Payload) < index+2+int(len1) {
-			return nil, errors.New("prase sqlcaxgrp error")
-		}
-		sqlcard.SqlRDBName = string(data.Payload[index+2 : index+2+int(len1)])
-		index += int(len1) + 2
-		len2 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-		if len(data.Payload) < index+2+int(len2) {
-			return nil, errors.New("prase sqlcaxgrp error")
-		}
-		sqlcard.SqlMessageM = string(data.Payload[index+2 : index+2+int(len2)])
-		index += int(len2) + 2
-		len3 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-		if len(data.Payload) < index+2+int(len3) {
-			return nil, errors.New("prase sqlcaxgrp error")
-		}
-		sqlcard.SqlMessageS = string(data.Payload[index+2 : index+2+int(len3)])
-		//index += int(len3) + 2
-	}
-	return sqlcard, nil
-}
+// func (drda *DRDA) ReadSQLCARD() (*SQLCARD, error) {
+// 	if drda.DDM.CodePoint != CP_SQLCARD {
+// 		return nil, errors.New("mismatch code point")
+// 	}
+// 	data := drda.GetParameter(CP_DATA)
+// 	if data == nil || len(data.Payload) == 0 {
+// 		return nil, errors.New("missing parameter data")
+// 	}
+// 	index := 0
+// 	var sqlcard = &SQLCARD{
+// 		DDM: drda.DDM,
+// 	}
+// 	var err error
+// 	if data.Payload[index] != 0xFF { // SQLCAGRP FLAG
+// 		if len(data.Payload) < index+14 {
+// 			return nil, errors.New("prase sqlcagrp error")
+// 		}
+// 		sqlcard.SqlState, err = strconv.ParseInt(
+// 			string(data.Payload[index+1:index+6]), 10, 64)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		sqlcard.SqlErrProc = string(data.Payload[index+6 : index+14])
+// 		index += 14
+// 	}
+// 	if data.Payload[index] != 0xFF { // SQLCAXGRP FLAG
+// 		if len(data.Payload) < index+36+6 {
+// 			return nil, errors.New("prase sqlcaxgrp error")
+// 		}
+// 		// TODO: INT64?
+// 		sqlcard.RowsFetched = binary.BigEndian.Uint64(data.Payload[index+1 : index+9])
+// 		sqlcard.RowsUpdated = binary.BigEndian.Uint32(data.Payload[index+9 : index+13])
+// 		sqlcard.SqlErrs = data.Payload[index+13 : index+25]
+// 		sqlcard.SqlWarn = data.Payload[index+25 : index+36]
+// 		index += 36
+// 		len1 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 		if len(data.Payload) < index+2+int(len1) {
+// 			return nil, errors.New("prase sqlcaxgrp error")
+// 		}
+// 		sqlcard.SqlRDBName = string(data.Payload[index+2 : index+2+int(len1)])
+// 		index += int(len1) + 2
+// 		len2 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 		if len(data.Payload) < index+2+int(len2) {
+// 			return nil, errors.New("prase sqlcaxgrp error")
+// 		}
+// 		sqlcard.SqlMessageM = string(data.Payload[index+2 : index+2+int(len2)])
+// 		index += int(len2) + 2
+// 		len3 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 		if len(data.Payload) < index+2+int(len3) {
+// 			return nil, errors.New("prase sqlcaxgrp error")
+// 		}
+// 		sqlcard.SqlMessageS = string(data.Payload[index+2 : index+2+int(len3)])
+// 		//index += int(len3) + 2
+// 	}
+// 	return sqlcard, nil
+// }
 
 const CP_SQLDARD = 0x2411
 
-type SQLDARD struct {
-	DDM       *DDM
-	SQLCAGRP  *SQLCAGRP
-	SQLDHGRP  *SQLDHGRP
-	SQLNUMBRP uint16
-	SQLDAGRP  []*SQLDAGRP
-}
+// func (drda *DRDA) ReadSQLDARD() (*SQLDARD, error) {
+// 	if drda.DDM.CodePoint != CP_SQLDARD {
+// 		return nil, errors.New("mismatch code point")
+// 	}
 
-type SQLCAGRP struct {
-	FLAG       byte
-	SQLSTATE   int64
-	SQLERRPROC string
-	SQLCAXGRP  *SQLCAXGRP
-}
+// 	data := drda.GetParameter(CP_DATA)
+// 	if data == nil || len(data.Payload) == 0 {
+// 		return nil, errors.New("missing parameter data")
+// 	}
+// 	index := 0
+// 	var o = &SQLDARD{
+// 		DDM: drda.DDM,
+// 	}
+// 	var err error
+// 	if data.Payload[index] != 0xFF { // SQLCAGRP FLAG
+// 		if len(data.Payload) < index+14 {
+// 			return nil, errors.New("prase SQLCAGRP error")
+// 		}
+// 		o.SQLCAGRP = &SQLCAGRP{
+// 			FLAG: data.Payload[index],
+// 		}
+// 		o.SQLCAGRP.SQLSTATE, err = strconv.ParseInt(
+// 			string(data.Payload[index+1:index+6]), 10, 64)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		o.SQLCAGRP.SQLERRPROC = string(data.Payload[index+6 : index+14])
+// 		index += 14
+// 		if data.Payload[index] != 0xFF { // SQLCAXGRP FLAG
+// 			if len(data.Payload) < index+36+6 {
+// 				return nil, errors.New("prase SQLCAXGRP error")
+// 			}
+// 			// TODO: INT64?
+// 			o.SQLCAGRP.SQLCAXGRP = &SQLCAXGRP{
+// 				FLAG:        data.Payload[index],
+// 				ROWSFETCHED: binary.BigEndian.Uint64(data.Payload[index+1 : index+9]),
+// 				ROWSUPDATED: binary.BigEndian.Uint32(data.Payload[index+9 : index+13]),
+// 				SQLERRD:     data.Payload[index+13 : index+25],
+// 				SQLWARN:     data.Payload[index+25 : index+36],
+// 			}
+// 			index += 36
+// 			len1 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 			if len(data.Payload) < index+2+int(len1) {
+// 				return nil, errors.New("prase SQLRDBNAME error")
+// 			}
+// 			o.SQLCAGRP.SQLCAXGRP.SQLRDBNAME = string(data.Payload[index+2 : index+2+int(len1)])
+// 			index += int(len1) + 2
+// 			len2 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 			if len(data.Payload) < index+2+int(len2) {
+// 				return nil, errors.New("prase SQLERRMSGM error")
+// 			}
+// 			o.SQLCAGRP.SQLCAXGRP.SQLERRMSGM = string(data.Payload[index+2 : index+2+int(len2)])
+// 			index += int(len2) + 2
+// 			len3 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 			if len(data.Payload) < index+2+int(len3) {
+// 				return nil, errors.New("prase SQLERRMSGS error")
+// 			}
+// 			o.SQLCAGRP.SQLCAXGRP.SQLERRMSGS = string(data.Payload[index+2 : index+2+int(len3)])
+// 			index += 2 + int(len3)
+// 		}
+// 	}
+// 	if data.Payload[index] != 0xFF { // SQLDHGRP FLAG
+// 		if len(data.Payload) < index+13 {
+// 			return nil, errors.New("prase SQLDHGRP error")
+// 		}
+// 		o.SQLDHGRP = &SQLDHGRP{
+// 			FLAG:          data.Payload[index],
+// 			SQLDHOLD:      binary.BigEndian.Uint16(data.Payload[index+1 : index+3]),
+// 			SQLDRETURN:    binary.BigEndian.Uint16(data.Payload[index+3 : index+5]),
+// 			SQLDSCROLL:    binary.BigEndian.Uint16(data.Payload[index+5 : index+7]),
+// 			SQLDSENSITIVE: binary.BigEndian.Uint16(data.Payload[index+7 : index+9]),
+// 			SQLDFCODE:     binary.BigEndian.Uint16(data.Payload[index+9 : index+11]),
+// 			SQLDKEYTYPE:   binary.BigEndian.Uint16(data.Payload[index+11 : index+13]),
+// 		}
+// 		index += 13
+// 		len1 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 		if len(data.Payload) < index+2+int(len1) {
+// 			return nil, errors.New("prase SQLDRDBNAM error")
+// 		}
+// 		o.SQLDHGRP.SQLDRDBNAM = string(data.Payload[index+2 : index+2+int(len1)])
+// 		index += int(len1) + 2
+// 		len2 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 		if len(data.Payload) < index+2+int(len2) {
+// 			return nil, errors.New("prase SQLDSCHEMAM error")
+// 		}
+// 		o.SQLDHGRP.SQLDSCHEMAM = string(data.Payload[index+2 : index+2+int(len2)])
+// 		index += int(len2) + 2
+// 		len3 := binary.BigEndian.Uint16(data.Payload[index : index+2])
+// 		if len(data.Payload) < index+2+int(len3) {
+// 			return nil, errors.New("prase SQLDSCHEMAS error")
+// 		}
+// 		o.SQLDHGRP.SQLDSCHEMAS = string(data.Payload[index+2 : index+2+int(len3)])
+// 		index += 2 + int(len3)
+// 	}
+// 	o.SQLNUMBRP = binary.BigEndian.Uint16(data.Payload[index+11 : index+13])
 
-type SQLCAXGRP struct {
-	FLAG        byte
-	ROWSFETCHED uint64
-	ROWSUPDATED uint32
-	SQLERRD     []byte
-	SQLWARN     []byte
-	SQLRDBNAME  string
-	SQLERRMSGM  string
-	SQLERRMSGS  string
-}
-
-type SQLDHGRP struct {
-	FLAG          byte
-	SQLDHOLD      uint16
-	SQLDRETURN    uint16
-	SQLDSCROLL    uint16
-	SQLDSENSITIVE uint16
-	SQLDFCODE     uint16
-	SQLDKEYTYPE   uint16
-	SQLDRDBNAM    string
-	SQLDSCHEMAM   string
-	SQLDSCHEMAS   string
-}
-
-type SQLDAGRP struct {
-	SQLPRECISION uint16
-	SQLSCALE     uint16
-	SQLLENGTH    uint64
-	SQLTYPE      uint16
-	SQLCCSID     uint16
-	SQLDOPTGRP   *SQLDOPTGRP
-}
-
-type SQLDOPTGRP struct {
-	FLAG         byte
-	SQLUNNAMED   uint16
-	SQLNAMEM     string
-	SQLNAMES     string
-	SQLLABELM    string
-	SQLLABELS    string
-	SQLCOMMENTSM string
-	SQLCOMMENTSS string
-	SQLUDTGRP    *SQLUDTGRP
-}
-
-type SQLUDTGRP struct {
-	FLAG          byte
-	SQLUDTXTYPE   int16
-	SQLUDTRDB     string
-	SQLUDTSCHEMAM string
-	SQLUDTSCHEMAS string
-	SQLUDTNAMEM   string
-	SQLUDTNAMES   string
-	SQLDXGRP      *SQLDXGRP
-}
-
-type SQLDXGRP struct {
-	FLAG           byte
-	SQLXKEYMEM     int16
-	SQLXUPDATEABLE int16
-	SQLXGENERATED  int16
-	SQLXPARMMODE   int16
-	SQLXRDBNAM     string
-	SQLXCORNAMEM   string
-	SQLXCORNAMES   string
-	SQLXBASENAMEM  string
-	SQLXBASENAMES  string
-	SQLXSCHEMAM    string
-	SQLXSCHEMAS    string
-	SQLXNAMEM      string
-	SQLXNAMES      string
-}
-
-func (drda *DRDA) ReadSQLDARD() (*SQLDARD, error) {
-	if drda.DDM.CodePoint != CP_SQLDARD {
-		return nil, errors.New("mismatch code point")
-	}
-
-	data := drda.GetParameter(CP_DATA)
-	if data == nil || len(data.Payload) == 0 {
-		return nil, errors.New("missing parameter data")
-	}
-	index := 0
-	var o = &SQLDARD{
-		DDM: drda.DDM,
-	}
-	var err error
-	if data.Payload[index] != 0xFF { // SQLCAGRP FLAG
-		if len(data.Payload) < index+14 {
-			return nil, errors.New("prase SQLCAGRP error")
-		}
-		o.SQLCAGRP = &SQLCAGRP{
-			FLAG: data.Payload[index],
-		}
-		o.SQLCAGRP.SQLSTATE, err = strconv.ParseInt(
-			string(data.Payload[index+1:index+6]), 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		o.SQLCAGRP.SQLERRPROC = string(data.Payload[index+6 : index+14])
-		index += 14
-		if data.Payload[index] != 0xFF { // SQLCAXGRP FLAG
-			if len(data.Payload) < index+36+6 {
-				return nil, errors.New("prase SQLCAXGRP error")
-			}
-			// TODO: INT64?
-			o.SQLCAGRP.SQLCAXGRP = &SQLCAXGRP{
-				FLAG:        data.Payload[index],
-				ROWSFETCHED: binary.BigEndian.Uint64(data.Payload[index+1 : index+9]),
-				ROWSUPDATED: binary.BigEndian.Uint32(data.Payload[index+9 : index+13]),
-				SQLERRD:     data.Payload[index+13 : index+25],
-				SQLWARN:     data.Payload[index+25 : index+36],
-			}
-			index += 36
-			len1 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-			if len(data.Payload) < index+2+int(len1) {
-				return nil, errors.New("prase SQLRDBNAME error")
-			}
-			o.SQLCAGRP.SQLCAXGRP.SQLRDBNAME = string(data.Payload[index+2 : index+2+int(len1)])
-			index += int(len1) + 2
-			len2 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-			if len(data.Payload) < index+2+int(len2) {
-				return nil, errors.New("prase SQLERRMSGM error")
-			}
-			o.SQLCAGRP.SQLCAXGRP.SQLERRMSGM = string(data.Payload[index+2 : index+2+int(len2)])
-			index += int(len2) + 2
-			len3 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-			if len(data.Payload) < index+2+int(len3) {
-				return nil, errors.New("prase SQLERRMSGS error")
-			}
-			o.SQLCAGRP.SQLCAXGRP.SQLERRMSGS = string(data.Payload[index+2 : index+2+int(len3)])
-			index += 2 + int(len3)
-		}
-	}
-	if data.Payload[index] != 0xFF { // SQLDHGRP FLAG
-		if len(data.Payload) < index+13 {
-			return nil, errors.New("prase SQLDHGRP error")
-		}
-		o.SQLDHGRP = &SQLDHGRP{
-			FLAG:          data.Payload[index],
-			SQLDHOLD:      binary.BigEndian.Uint16(data.Payload[index+1 : index+3]),
-			SQLDRETURN:    binary.BigEndian.Uint16(data.Payload[index+3 : index+5]),
-			SQLDSCROLL:    binary.BigEndian.Uint16(data.Payload[index+5 : index+7]),
-			SQLDSENSITIVE: binary.BigEndian.Uint16(data.Payload[index+7 : index+9]),
-			SQLDFCODE:     binary.BigEndian.Uint16(data.Payload[index+9 : index+11]),
-			SQLDKEYTYPE:   binary.BigEndian.Uint16(data.Payload[index+11 : index+13]),
-		}
-		index += 13
-		len1 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-		if len(data.Payload) < index+2+int(len1) {
-			return nil, errors.New("prase SQLDRDBNAM error")
-		}
-		o.SQLDHGRP.SQLDRDBNAM = string(data.Payload[index+2 : index+2+int(len1)])
-		index += int(len1) + 2
-		len2 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-		if len(data.Payload) < index+2+int(len2) {
-			return nil, errors.New("prase SQLDSCHEMAM error")
-		}
-		o.SQLDHGRP.SQLDSCHEMAM = string(data.Payload[index+2 : index+2+int(len2)])
-		index += int(len2) + 2
-		len3 := binary.BigEndian.Uint16(data.Payload[index : index+2])
-		if len(data.Payload) < index+2+int(len3) {
-			return nil, errors.New("prase SQLDSCHEMAS error")
-		}
-		o.SQLDHGRP.SQLDSCHEMAS = string(data.Payload[index+2 : index+2+int(len3)])
-		index += 2 + int(len3)
-	}
-	o.SQLNUMBRP = binary.BigEndian.Uint16(data.Payload[index+11 : index+13])
-
-	return o, nil
-}
+// 	return o, nil
+// }

@@ -8,8 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Yiwen-Chan/DRDA/drda"
+	"github.com/kanrichan/ibm_db/drda"
 )
+
+//go:generate go run generator/drda.go
 
 type Driver struct{}
 

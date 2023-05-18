@@ -125,14 +125,14 @@ func (conn *Conn) Login() error {
 		// 	}
 		// 	return errors.New(string(ToASCII(srvdgn.Payload)))
 		case CP_SQLCARD:
-			sqlcard, err := drda.ReadSQLCARD()
-			switch {
-			case err != nil:
-				return err
-			case sqlcard.SqlState < 0:
-				return fmt.Errorf("%5d %s %s%s", sqlcard.SqlState,
-					sqlcard.SqlErrProc, sqlcard.SqlMessageM, sqlcard.SqlMessageS)
-			}
+			// sqlcard, err := drda.ReadSQLCARD()
+			// switch {
+			// case err != nil:
+			// 	return err
+			// case sqlcard.SqlState < 0:
+			// 	return fmt.Errorf("%5d %s %s%s", sqlcard.SqlState,
+			// 		sqlcard.SqlErrProc, sqlcard.SqlMessageM, sqlcard.SqlMessageS)
+			// }
 		default:
 			// return errors.New("unknown error")
 		}

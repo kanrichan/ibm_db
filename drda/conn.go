@@ -104,9 +104,9 @@ func (conn *Conn) Read() (*DRDA, error) {
 	// 因为长度是两位数，所以是 len(b2)-1
 	for i := 8; i < len(b2)-1; {
 		var length = (int32(b2[i]) << 8) | int32(b2[i+1])
-		if int(length) > len(b2)-i {
-			break
-		}
+		// if int(length) > len(b2)-i {
+		// 	break
+		// }
 		var codepoint = (int32(b2[i+2]) << 8) | int32(b2[i+3])
 		if codepoint == CP_DATA {
 			drda.Parameters = append(drda.Parameters,

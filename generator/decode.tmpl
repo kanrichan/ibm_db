@@ -1,0 +1,285 @@
+package drda
+
+import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"io"
+)
+
+// Decoder Decoder
+type Decoder struct {
+	r io.Reader
+}
+
+// Unmarshal Unmarshal
+func Unmarshal(data []byte, v any) error {
+	return NewDecoder(bytes.NewReader(data)).Decode(v)
+}
+
+// NewDecoder NewDecoder
+func NewDecoder(r io.Reader) *Decoder {
+	return &Decoder{r}
+}
+
+// Decode Decode
+func (dec *Decoder) Decode(v any) error {
+	switch obj := v.(type) {
+	{{- range .Types}}
+	case *{{.Name}}:
+		return dec.Decode{{.Name}}(obj)
+	{{- end}}
+	default:
+		return errors.New("unsupported type")
+	}
+}
+
+{{range .Types}}
+// Decode{{.Name}} Decode{{.Name}}
+func (dec *Decoder) Decode{{.Name}}(v *{{.Name}}) error {
+	{{- $father := .Name}}
+	var err error
+	{{- range .Columns}}
+	{{- if eq .Type "bool"}}
+	v.{{.Name}}, err = dec.ReadBool()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "int8"}}
+	v.{{.Name}}, err = dec.ReadInt8()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "int16"}}
+	v.{{.Name}}, err = dec.ReadInt16()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "int32"}}
+	v.{{.Name}}, err = dec.ReadInt32()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "int64"}}
+	v.{{.Name}}, err = dec.ReadInt64()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "uint8"}}
+	v.{{.Name}}, err = dec.ReadUint8()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "uint16"}}
+	v.{{.Name}}, err = dec.ReadUint16()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "uint32"}}
+	v.{{.Name}}, err = dec.ReadUint32()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "uint64"}}
+	v.{{.Name}}, err = dec.ReadUint64()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "[]byte"}}
+	v.{{.Name}}, err = dec.ReadByteSlice()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "string"}}
+	v.{{.Name}}, err = dec.ReadString()
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "[*]byte"}}
+	err = dec.ReadByteArray(v.{{.Name}}[:])
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- else if eq .Type "[]*struct"}}
+	v.{{.Name}} = make([]*{{.Name}}, v.{{.Len}})
+	for i := 0; i < int(v.{{.Len}}); i++ {
+		v.{{.Name}}[i] = &{{.Name}}{}
+		err = dec.Decode{{.Name}}(v.{{.Name}}[i])
+		if err != nil {
+			return errors.New("{{$father}}.{{.Name}} " + err.Error())
+		}
+	}
+	{{- else}}
+	{{- if eq .Flag true}}
+	if v.{{.Name}}FLAG != 0xFF {
+		v.{{.Name}} = &{{.Name}}{}
+		err = dec.Decode{{.Name}}(v.{{.Name}})
+		if err != nil {
+			return errors.New("{{$father}}.{{.Name}} " + err.Error())
+		}
+	}
+	{{- else}}
+	v.{{.Name}} = &{{.Name}}{}
+	err = dec.Decode{{.Name}}(v.{{.Name}})
+	if err != nil {
+		return errors.New("{{$father}}.{{.Name}} " + err.Error())
+	}
+	{{- end}}
+	{{- end}}
+	{{- end}}
+	return nil
+}
+{{end}}
+
+// ReadBool ReadBool
+func (dec *Decoder) ReadBool() (bool, error) {
+	u8, err := dec.ReadUint8()
+	return u8 != 0, err
+}
+
+// ReadInt8 ReadInt8
+func (dec *Decoder) ReadInt8() (int8, error) {
+	{{- $length := 1}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return int8(b[0]), nil
+}
+
+// ReadInt16 ReadInt16
+func (dec *Decoder) ReadInt16() (int16, error) {
+	{{- $length := 2}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return int16(binary.BigEndian.Uint16(b)), nil
+}
+
+// ReadInt32 ReadInt32
+func (dec *Decoder) ReadInt32() (int32, error) {
+	{{- $length := 4}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return int32(binary.BigEndian.Uint32(b)), nil
+}
+
+// ReadInt64 ReadInt64
+func (dec *Decoder) ReadInt64() (int64, error) {
+	{{- $length := 8}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return int64(binary.BigEndian.Uint64(b)), nil
+}
+
+// ReadUint8 ReadUint8
+func (dec *Decoder) ReadUint8() (uint8, error) {
+	{{- $length := 1}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return b[0], nil
+}
+
+// ReadUint16 ReadUint16
+func (dec *Decoder) ReadUint16() (uint16, error) {
+	{{- $length := 2}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return binary.BigEndian.Uint16(b), nil
+}
+
+// ReadUint32 ReadUint32
+func (dec *Decoder) ReadUint32() (uint32, error) {
+	{{- $length := 4}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return binary.BigEndian.Uint32(b), nil
+}
+
+// ReadUint64 ReadUint64
+func (dec *Decoder) ReadUint64() (uint64, error) {
+	{{- $length := 8}}
+	var b = make([]byte, {{$length}})
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	if n != {{$length}} {
+		return 0, io.EOF
+	}
+	return binary.BigEndian.Uint64(b), nil
+}
+
+// ReadByteSlice ReadByteSlice
+func (dec *Decoder) ReadByteSlice() ([]byte, error) {
+	length, err := dec.ReadInt16()
+	if err != nil {
+		return nil, err
+	}
+	var b = make([]byte, int(length))
+	n, err := dec.r.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	if n != int(length) {
+		return nil, io.EOF
+	}
+	return b, nil
+}
+
+// ReadString ReadString
+func (dec *Decoder) ReadString() (string, error) {
+	b, err := dec.ReadByteSlice()
+	return string(b), err
+}
+
+// ReadByteArray ReadByteArray
+func (dec *Decoder) ReadByteArray(v []byte) error {
+	n, err := dec.r.Read(v)
+	if err != nil {
+		return err
+	}
+	if n != len(v) {
+		return io.EOF
+	}
+	return nil
+}
